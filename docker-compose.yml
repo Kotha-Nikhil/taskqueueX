@@ -1,0 +1,139 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: taskqueuex-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-taskqueuex}
+      POSTGRES_USER: ${POSTGRES_USER:-taskqueuex}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taskqueuex}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taskqueuex}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taskqueuex-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: taskqueuex-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - taskqueuex-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: taskqueuex-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - taskqueuex-network
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: taskqueuex-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      /usr/bin/mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin};
+      /usr/bin/mc mb myminio/taskqueuex-results || true;
+      /usr/bin/mc anonymous set download myminio/taskqueuex-results;
+      exit 0;
+      "
+    networks:
+      - taskqueuex-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE_NAME: taskqueuex-api
+    container_name: taskqueuex-api
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-taskqueuex}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-taskqueuex}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-taskqueuex}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - taskqueuex-network
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        MODULE_NAME: taskqueuex-worker
+    container_name: taskqueuex-worker-1
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-taskqueuex}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-taskqueuex}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-taskqueuex}
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      WORKER_ID: ${WORKER_ID:-worker-1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - taskqueuex-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  taskqueuex-network:
+    driver: bridge

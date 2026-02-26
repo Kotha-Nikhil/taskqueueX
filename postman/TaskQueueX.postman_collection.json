@@ -1,0 +1,135 @@
+{
+  "info": {
+    "name": "TaskQueueX API",
+    "description": "Collection for TaskQueueX distributed job processing platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Submit Job",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"jobType\": \"REPORT_GENERATION\",\n  \"payload\": \"{\\\"title\\\":\\\"Sales Report\\\",\\\"data\\\":[{\\\"product\\\":\\\"Widget\\\",\\\"sales\\\":1000},{\\\"product\\\":\\\"Gadget\\\",\\\"sales\\\":2000}]}\",\n  \"priority\": 0,\n  \"maxRetries\": 3,\n  \"idempotencyKey\": \"unique-key-{{$randomUUID}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/jobs",
+          "host": ["{{baseUrl}}"],
+          "path": ["jobs"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Job",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/jobs/{{jobId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["jobs", "{{jobId}}"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List Jobs",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/jobs?status=QUEUED&page=0&size=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["jobs"],
+          "query": [
+            {
+              "key": "status",
+              "value": "QUEUED"
+            },
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "20"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Retry Job",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/jobs/{{jobId}}/retry",
+          "host": ["{{baseUrl}}"],
+          "path": ["jobs", "{{jobId}}", "retry"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Cancel Job",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/jobs/{{jobId}}/cancel",
+          "host": ["{{baseUrl}}"],
+          "path": ["jobs", "{{jobId}}", "cancel"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Metrics",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/actuator/metrics",
+          "host": ["{{baseUrl}}"],
+          "path": ["actuator", "metrics"]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "jobId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
